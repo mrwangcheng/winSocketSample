@@ -16,3 +16,5 @@
 *.suo
 /ipch
 /*/Debug
+WinSocket.opensdf
+Debug/

@@ -1,29 +1,59 @@
 #include <winsock2.h>
 #include <stdio.h>
 #include <windows.h>
+#include<process.h>
+HANDLE g_hEvent = NULL;
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
+struct Data{
+	SOCKET sd;
+	char tArr[];
+};
+unsigned __stdcall SendThread(void *lpvoid)
+{	
+	DWORD dReturn=WaitForSingleObject(g_hEvent, INFINITE);
+	DWORD tid = GetCurrentThreadId();
+	Data *pdata = (Data*)lpvoid;
+	char temp[250] = { 0 };
+	int sendCount, currentPosition = 0,len=0;
+	len = strlen(pdata->tArr);
+	sendCount = send(pdata->sd, pdata->tArr, len, 0);
+	if (sendCount != len)
+	{
+		MessageBox(NULL,NULL,L"ERROR",MB_OK);
+	}
+	SetEvent(g_hEvent);
+	return 0;
 
+}
 DWORD WINAPI ThreadProc(
 	__in  LPVOID lpParameter
 	)
 {
 	SOCKET AcceptSocket=(SOCKET) lpParameter;
+	DWORD tid = GetCurrentThreadId();
+
 	//接收缓冲区的大小是50个字符
-	char recvBuf[51];
+	char recvBuf[51] = {0};
+	char temp[250] = { 0 };
+	HANDLE hThread = NULL;
 	while(1){
 		int count =recv(AcceptSocket ,recvBuf,50,0);
-		if(count==0)break;//被对方关闭
-		if(count==SOCKET_ERROR)break;//错误count<0
+		strncpy(temp, recvBuf, strlen(recvBuf));
+		sprintf(temp, "server recvive thread tid =(%d) message=%s", tid,recvBuf);
+		Data *pdata = (Data*)malloc(sizeof(SOCKET)+50);
+		pdata->sd = AcceptSocket;
+		strcpy(pdata->tArr, recvBuf);
+		int len = strlen(temp);
+		if (count == 0 || count == SOCKET_ERROR)break;//被对方关闭
 		int sendCount,currentPosition=0;
-		while( count>0 && (sendCount=send(AcceptSocket ,recvBuf+currentPosition,count,0))!=SOCKET_ERROR)
+		hThread = (HANDLE)_beginthreadex(NULL, 0, SendThread, (LPVOID)pdata, 0, NULL);
+		if (!hThread)
 		{
-			count-=sendCount;
-			currentPosition+=sendCount;
+			WaitForSingleObject(hThread,INFINITE);
 		}
-		if(sendCount==SOCKET_ERROR)break;
-
-		printf("接收来自客户端%d的信息：%s/n",AcceptSocket,recvBuf);
+		printf("\t\t\t接收来自客户端%d的信息：%s\n",AcceptSocket,recvBuf);
+		Sleep(100);
 	}
 	//结束连接
 	closesocket(AcceptSocket);
@@ -31,9 +61,10 @@ DWORD WINAPI ThreadProc(
 }
 
 int main(int argc, char* argv[])
-{
+{	
 	//----------------------
 	// Initialize Winsock.
+	g_hEvent = CreateEvent(NULL,FALSE,TRUE,NULL);
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != NO_ERROR) {

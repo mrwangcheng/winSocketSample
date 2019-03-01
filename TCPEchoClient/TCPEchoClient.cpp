@@ -42,21 +42,38 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-	char buf[1024+1];
+	//char buf[1024 + 1] = {0};
 	//以一个无限循环的方式，不停地接收输入，发送到server
+	FILE *fp=NULL,*fpw=NULL;
+	fp = fopen("D:\\winSocketSample\\Debug\\test.txt","r");
+	if (fp == NULL){
+		DWORD nEr = GetLastError();
+		return 0;
+	}
+	fseek(fp, 0, SEEK_END);
+	long size=ftell(fp);
+	char *buf = new char[size + 1];
+	memset(buf,0,strlen(buf)+1);
+	fseek(fp,0,SEEK_SET);
+	fread(buf, 1, size, fp);
+	int sentsize = 1024;
 	while(1)
-	{
-		int count = _read (0, buf, 1024);//从标准输入读入
-		if(count<=0)break;
-		int sendCount,currentPosition=0;
-		while( count>0 && (sendCount=send(ConnectSocket ,buf+currentPosition,count,0))!=SOCKET_ERROR)
-		{
-			count-=sendCount;
-			currentPosition+=sendCount;
-		}
+	{	
+		//int count = _read (0, buf, 1024);//从标准输入读入
+		long sendCount=0,currentPosition=0;
+	
+			sendCount = send(ConnectSocket, buf + currentPosition, sentsize, 0);
+			if (sendCount == size)
+			{
+				break;
+			}
+			else{
+				currentPosition += sendCount;
+			}
+		//Sleep(1000);
 		if(sendCount==SOCKET_ERROR)break;
 		
-		count =recv(ConnectSocket ,buf,1024,0);
+		long count =recv(ConnectSocket ,buf,size,0);
 		if(count==0)break;//被对方关闭
 		if(count==SOCKET_ERROR)break;//错误count<0
 		buf[count]='\0';
